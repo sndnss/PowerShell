@@ -11,7 +11,7 @@ Retrieves Windows Defender Firewall Log-entries from a specified Windows Defende
 ## Background
 As part of the process to secure and harden an environment, enabling the host-based firewall on Windows Servers and Workstations is a crucial task, which we have done numerous times. Various scripts have been developed to facilitate this process, this is the current one used to help get a quick overview, when parsing the log-files generated, to identify ports and ip-addresses to and from, which the traffic flows locally on a computer.
 ## Quickload
-If your host has access to the internet, this codesnippet can be used to load the function directly into your environment, be aware that it might trigger an alarm or two, as it is considered remote code execution.
+If your host has access to the internet, this codesnippet can be used to load the function directly into your environment, be aware that it might trigger an alarm or two, as it is considered in-memory code execution.
 ```PowerShell
 $remoteURL = 'https://raw.githubusercontent.com/sndnss/PowerShell/main/Microsoft/Windows/Defender/Firewall/Get-WindowsDefenderFirewallLog/Get-WindowsDefenderFirewallLog.ps1'       
 $remoteCode = (Invoke-WebRequest -Uri $remoteURL -UseBasicParsing).Content
