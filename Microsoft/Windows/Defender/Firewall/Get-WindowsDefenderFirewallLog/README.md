@@ -2,12 +2,16 @@
 Retrieves Windows Defender Firewall Log-entries from a specified Windows Defender Firewall Log-file
 ## Table of Content
   - [Version Changes](#version-changes)
+  - [Notes](#notes)
   - [Background](#background)
+  - [Quickload](#quickload)
   - [Examples](#examples)
   - [Builtin Help](#builtin-help)
 ## Version Changes
 ##### 1.0.0.0
 - First version published on GitHub
+## Notes
+The script is created in 2024, and has only been tested on Windows Server 2022 and Windows 11. It should however be compatible with most newer versions of the Microsoft Windows Defender Firewall.
 ## Background
 As part of the process to secure and harden an environment, enabling the host-based firewall on Windows Servers and Workstations is a crucial task, which we have done numerous times. Various scripts have been developed to facilitate this process, this is the current one used to help get a quick overview, when parsing the log-files generated, to identify ports and ip-addresses to and from, which the traffic flows locally on a computer.
 ## Quickload
