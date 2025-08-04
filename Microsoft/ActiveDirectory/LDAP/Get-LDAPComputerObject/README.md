@@ -16,7 +16,13 @@ Retrieves Active Directory computer object information using efficient LDAP quer
 - [Compatibility](#compatibility)
 
 ## Version Changes
-##### 1.2.0.0 (Current)
+##### 1.2.0.1 (Current)
+- **UserCertificate Fix**: Enhanced certificate handling to display readable certificate information instead of binary arrays
+- **Certificate Parsing**: Automatic parsing of X509 certificates with Subject, Thumbprint, and expiration details
+- **Multiple Certificate Support**: Proper handling of multiple certificates per computer object
+- **Error Handling**: Graceful fallback for certificate parsing failures with meaningful error messages
+
+##### 1.2.0.0
 - **Centralized Property Mapping**: Complete architectural modernization with single comprehensive mapping table
 - **Eliminated Code Duplication**: Replaced multiple scattered switch statements with centralized mapping system
 - **Enhanced Maintainability**: Single source of truth for all property mappings (80+ properties)
@@ -80,6 +86,13 @@ Get-LDAPComputerObject is a high-performance PowerShell function that retrieves 
 - **Eliminated Code Duplication**: Replaced scattered switch statements with unified mapping system
 - **Enhanced Maintainability**: Single source of truth for all property mappings
 - **Future-Proof Design**: Easy addition of new properties through central mapping table
+
+### Certificate Handling (v1.2.0.1)
+- **UserCertificate Parsing**: Automatic X509 certificate parsing with readable output
+- **Certificate Details**: Displays Subject, Thumbprint, and NotAfter date for each certificate
+- **Multiple Certificates**: Handles multiple certificates with semicolon separation
+- **Error Resilience**: Graceful fallback for unparseable certificates showing byte length
+- **Security Information**: Easy identification of certificate expiration for security management
 
 ### Reliability Enhancements (v1.1.0.0)
 - **Pre-flight Checks**: Active Directory connectivity validation before processing
@@ -252,8 +265,11 @@ Get-LDAPComputerObject -ComputerName "SERVER01"
 # Get computer with operating system information
 Get-LDAPComputerObject -ComputerName "SERVER01" -Properties OperatingSystem
 
-# Get all available properties for analysis
-Get-LDAPComputerObject -ComputerName "SERVER01" -Properties *
+# Get computer with certificates (v1.2.0.1 enhancement)
+Get-LDAPComputerObject -ComputerName "SERVER01" -Properties UserCertificate
+
+# Example output format for UserCertificate:
+# UserCertificate : Subject: CN=SERVER01.domain.com, O=Company, Thumbprint: A1B2C3D4E5F6..., NotAfter: 12/31/2025; Subject: CN=SERVER01-WEB, O=Company, Thumbprint: F6E5D4C3B2A1..., NotAfter: 06/15/2026
 ```
 
 ### Bulk Operations
@@ -502,3 +518,4 @@ Identical property names and data types as Get-ADComputer for seamless integrati
 - **User Account Control**: Enabled, PasswordNeverExpires, TrustedForDelegation with proper flag parsing
 - **Multi-Value Properties**: ServicePrincipalNames, MemberOf with comma-separated formatting
 - **Network Properties**: IPv4Address, IPv6Address with proper string conversion
+- **Certificate Data**: UserCertificate with X509 certificate parsing and readable output format

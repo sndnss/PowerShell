@@ -16,7 +16,13 @@ Retrieves Active Directory user object information using efficient LDAP queries 
 - [Compatibility](#compatibility)
 
 ## Version Changes
-##### 1.2.0.0 (Current)
+##### 1.2.0.1 (Current)
+- **UserCertificate Fix**: Enhanced certificate handling to display readable certificate information instead of binary arrays
+- **Certificate Parsing**: Automatic parsing of X509 certificates with Subject, Thumbprint, and expiration details
+- **Multiple Certificate Support**: Proper handling of multiple certificates per user object
+- **Error Handling**: Graceful fallback for certificate parsing failures with meaningful error messages
+
+##### 1.2.0.0
 - **Centralized Property Mapping**: Complete architectural modernization with single comprehensive mapping table
 - **Eliminated Code Duplication**: Replaced multiple scattered switch statements with centralized mapping system
 - **Enhanced Maintainability**: Single source of truth for all property mappings (70+ properties)
@@ -74,6 +80,13 @@ Get-LDAPUserObject is a high-performance PowerShell function that retrieves Acti
 - **Eliminated Code Duplication**: Replaced scattered switch statements with unified mapping system
 - **Enhanced Maintainability**: Single source of truth for all property mappings
 - **Future-Proof Design**: Easy addition of new properties through central mapping table
+
+### Certificate Handling (v1.2.0.1)
+- **UserCertificate Parsing**: Automatic X509 certificate parsing with readable output
+- **Certificate Details**: Displays Subject, Thumbprint, and NotAfter date for each certificate
+- **Multiple Certificates**: Handles multiple certificates with semicolon separation
+- **Error Resilience**: Graceful fallback for unparseable certificates showing byte length
+- **Security Information**: Easy identification of certificate expiration for security management
 
 ### Search Flexibility
 - **Multiple Search Methods**: Search by SamAccountName, UserPrincipalName, DisplayName, or Name
@@ -267,8 +280,11 @@ Get-LDAPUserObject -UserName "jdoe"
 # Get user with contact information
 Get-LDAPUserObject -UserName "jdoe" -Properties EmailAddress, OfficePhone, Department
 
-# Get all available properties for analysis
-Get-LDAPUserObject -UserName "jdoe" -Properties *
+# Get user with certificates (v1.2.0.1 enhancement)
+Get-LDAPUserObject -UserName "jdoe" -Properties UserCertificate
+
+# Example output format for UserCertificate:
+# UserCertificate : Subject: CN=John Doe, O=Company, Thumbprint: A1B2C3D4E5F6..., NotAfter: 12/31/2025; Subject: CN=John Doe Encryption, O=Company, Thumbprint: F6E5D4C3B2A1..., NotAfter: 06/15/2026
 ```
 
 ### Different Search Methods

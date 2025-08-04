@@ -2,7 +2,7 @@
 
 .DESCRIPTION Retrieves Active Directory user object information using efficient LDAP queries with flexible property selection and Get-ADUser compatibility.
 
-.VERSION 1.2.0.0
+.VERSION 1.2.0.1
 
 .GUID a8c42618-d822-4ab9-93fb-02c8c4608b92
 
@@ -310,7 +310,7 @@ function Get-LDAPUserObject {
             'TrustedForDelegation' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'TrustedForDelegation' }
             'TrustedToAuthForDelegation' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'TrustedToAuthForDelegation' }
             'UseDesKeyOnly' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'UseDesKeyOnly' }
-            'UserCertificate' = @{ LdapName = 'usercertificate'; SpecialHandling = $null }
+            'UserCertificate' = @{ LdapName = 'usercertificate'; SpecialHandling = 'UserCertificate' }
             'UserPrincipalName' = @{ LdapName = 'userprincipalname'; SpecialHandling = $null }
             # Additional LDAP-to-PowerShell mappings for properties that don't follow standard naming
             'adspath' = @{ LdapName = 'adspath'; SpecialHandling = $null }
@@ -655,6 +655,25 @@ function Get-LDAPUserObject {
                                                 $userObject[$Name] = $null
                                             } else {
                                                 $userObject[$Name] = [DateTime]::FromFileTime($badPasswordTime)
+                                            }
+                                        }
+                                        'UserCertificate' {
+                                            if ($propertyValues.Count -gt 0) {
+                                                $certStrings = foreach ($cert in $propertyValues) {
+                                                    if ($cert -is [byte[]]) {
+                                                        try {
+                                                            $x509 = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($cert)
+                                                            "Subject: $($x509.Subject), Thumbprint: $($x509.Thumbprint), NotAfter: $($x509.NotAfter)"
+                                                        } catch {
+                                                            "Certificate (Length: $($cert.Length) bytes)"
+                                                        }
+                                                    } else {
+                                                        $cert.ToString()
+                                                    }
+                                                }
+                                                $userObject[$Name] = $certStrings -join '; '
+                                            } else {
+                                                $userObject[$Name] = $null
                                             }
                                         }
                                         default {

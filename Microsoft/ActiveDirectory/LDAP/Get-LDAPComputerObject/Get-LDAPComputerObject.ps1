@@ -2,7 +2,7 @@
 
 .DESCRIPTION Retrieves Active Directory computer object information using efficient LDAP queries with flexible property selection and Get-ADComputer compatibility.
 
-.VERSION 1.2.0.0
+.VERSION 1.2.0.1
 
 .GUID 99b42518-c711-49b8-92ea-01b7b3507a91
 
@@ -306,7 +306,7 @@ function Get-LDAPComputerObject {
             'TrustedForDelegation' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'TrustedForDelegation' }
             'TrustedToAuthForDelegation' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'TrustedToAuthForDelegation' }
             'UseDESKeyOnly' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'UseDESKeyOnly' }
-            'UserCertificate' = @{ LdapName = 'usercertificate'; SpecialHandling = $null }
+            'UserCertificate' = @{ LdapName = 'usercertificate'; SpecialHandling = 'UserCertificate' }
             'UserPrincipalName' = @{ LdapName = 'userprincipalname'; SpecialHandling = $null }
             # Additional LDAP-to-PowerShell mappings for properties that don't follow standard naming
             'adspath' = @{ LdapName = 'adspath'; SpecialHandling = $null }
@@ -648,6 +648,25 @@ function Get-LDAPComputerObject {
                                                 $computerObject[$Name] = $null
                                             } else {
                                                 $computerObject[$Name] = [DateTime]::FromFileTime($badPasswordTime)
+                                            }
+                                        }
+                                        'UserCertificate' {
+                                            if ($propertyValues.Count -gt 0) {
+                                                $certStrings = foreach ($cert in $propertyValues) {
+                                                    if ($cert -is [byte[]]) {
+                                                        try {
+                                                            $x509 = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($cert)
+                                                            "Subject: $($x509.Subject), Thumbprint: $($x509.Thumbprint), NotAfter: $($x509.NotAfter)"
+                                                        } catch {
+                                                            "Certificate (Length: $($cert.Length) bytes)"
+                                                        }
+                                                    } else {
+                                                        $cert.ToString()
+                                                    }
+                                                }
+                                                $computerObject[$Name] = $certStrings -join '; '
+                                            } else {
+                                                $computerObject[$Name] = $null
                                             }
                                         }
                                         default {
