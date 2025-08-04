@@ -10,6 +10,13 @@ High-performance LDAP computer object queries
 - Compatible output format with Get-ADComputer
 - Custom attribute selection capabilities
 
+### [Get-LDAPUserObject](./Get-LDAPUserObject/)
+High-performance LDAP user object queries
+- Direct LDAP queries for improved performance
+- Batch processing for large environments
+- Compatible output format with Get-ADUser
+- Custom attribute selection capabilities
+
 ## Getting Started
 Navigate to the specific tool directories for detailed documentation, examples, and usage instructions.
 
@@ -28,6 +35,23 @@ High-performance computer object retrieval using direct LDAP queries
 
 **Performance Characteristics:**
 - 3-10x faster than Get-ADComputer for large queries
+- Reduced memory usage for bulk operations
+- Optimized for enterprise-scale environments
+- Configurable batch sizes for memory management
+
+### [Get-LDAPUserObject](./Get-LDAPUserObject/)
+High-performance user object retrieval using direct LDAP queries
+
+**Key Features:**
+- Direct LDAP query implementation
+- Flexible property selection
+- Batch processing optimization
+- Get-ADUser output compatibility
+- Custom domain and credential support
+- Memory-efficient streaming operations
+
+**Performance Characteristics:**
+- 3-10x faster than Get-ADUser for large queries
 - Reduced memory usage for bulk operations
 - Optimized for enterprise-scale environments
 - Configurable batch sizes for memory management

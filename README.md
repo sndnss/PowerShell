@@ -27,6 +27,7 @@ This repository is dedicated to sharing practical PowerShell tools that solve re
 ### Active Directory Management
 - **[Add-IPAddressToObject](./Microsoft/ActiveDirectory/Add-IPAddressToObject/)** - Enriches AD computer objects with DNS resolution and IP addresses
 - **[Get-LDAPComputerObject](./Microsoft/ActiveDirectory/LDAP/Get-LDAPComputerObject/)** - High-performance LDAP queries for computer objects
+- **[Get-LDAPUserObject](./Microsoft/ActiveDirectory/LDAP/Get-LDAPUserObject/)** - High-performance LDAP queries for user objects
 
 ### Security and Monitoring
 - **[Get-WindowsDefenderFirewallLog](./Microsoft/Windows/Defender/Firewall/Get-WindowsDefenderFirewallLog/)** - Advanced firewall log analysis with enterprise performance optimization
