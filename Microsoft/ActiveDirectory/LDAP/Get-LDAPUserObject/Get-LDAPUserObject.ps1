@@ -1,10 +1,10 @@
 <#PSScriptInfo
 
-.DESCRIPTION Retrieves Active Directory computer object information using efficient LDAP queries with flexible property selection and Get-ADComputer compatibility.
+.DESCRIPTION Retrieves Active Directory user object information using efficient LDAP queries with flexible property selection and Get-ADUser compatibility.
 
 .VERSION 1.2.0.0
 
-.GUID 99b42518-c711-49b8-92ea-01b7b3507a91
+.GUID a8c42618-d822-4ab9-93fb-02c8c4608b92
 
 .AUTHOR Tom Stryhn
 
@@ -12,31 +12,32 @@
 
 .COPYRIGHT 2025 (c) Tom Stryhn
 
-.TAGS Active Directory LDAP Computer Object Query
+.TAGS Active Directory LDAP User Object Query
 
 .LICENSEURI https://github.com/sndnss/PowerShell/blob/main/LICENSE
 
-.PROJECTURI https://github.com/sndnss/PowerShell/Microsoft/ActiveDirectory/LDAP/Get-LDAPComputerObject/
+.PROJECTURI https://github.com/sndnss/PowerShell/Microsoft/ActiveDirectory/LDAP/Get-LDAPUserObject/
 
 #>
 
-function Get-LDAPComputerObject {
+function Get-LDAPUserObject {
 
 <#
 .SYNOPSIS
-    Retrieves computer object information from Active Directory using LDAP queries with flexible property selection.
+    Retrieves user object information from Active Directory using LDAP queries with flexible property selection.
 
 .DESCRIPTION
-    This function searches Active Directory for computer objects by name and returns detailed information
+    This function searches Active Directory for user objects by name and returns detailed information
     with customizable property selection. It supports pipeline input and can work with different domains and credentials.
 
-.PARAMETER ComputerName
-    One or more computer names to search for in Active Directory. Accepts pipeline input.
+.PARAMETER UserName
+    One or more user names to search for in Active Directory. Accepts pipeline input.
+    Can be SamAccountName, UserPrincipalName, or DisplayName.
 
 .PARAMETER Properties
-    Additional AD properties to retrieve beyond the default set. Like Get-ADComputer, these properties are added to the default properties.
-    Use '*' to retrieve all available properties. Property names match Get-ADComputer format (e.g., 'OperatingSystem', 'Description').
-    Default properties always included: Name, DNSHostName, DistinguishedName, Enabled, ObjectClass, ObjectGUID, SamAccountName, SID, UserPrincipalName
+    Additional AD properties to retrieve beyond the default set. Like Get-ADUser, these properties are added to the default properties.
+    Use '*' to retrieve all available properties. Property names match Get-ADUser format (e.g., 'Department', 'Title').
+    Default properties always included: Name, UserPrincipalName, SamAccountName, DistinguishedName, Enabled, ObjectClass, ObjectGUID, SID
 
 .PARAMETER Domain
     The domain to search in. If not specified, uses the current domain.
@@ -45,49 +46,49 @@ function Get-LDAPComputerObject {
     Alternative credentials to use for the LDAP connection.
 
 .PARAMETER BatchSize
-    Number of computers to process in each batch for large datasets. Defaults to 500. 
+    Number of users to process in each batch for large datasets. Defaults to 500. 
     Larger batches use more memory but may be faster. Smaller batches are more memory efficient.
 
 .PARAMETER NoProgress
     Suppress progress reporting during processing. Useful for automated scripts or when redirecting output.
 
 .PARAMETER SearchBy
-    Specify which attribute to search by. Valid values: SamAccountName, DNSHostName, Name.
-    Defaults to Name for compatibility with Get-ADComputer.
+    Specify which attribute to search by. Valid values: SamAccountName, UserPrincipalName, DisplayName, Name.
+    Defaults to SamAccountName for compatibility with Get-ADUser.
 
 .EXAMPLE
-    Get-LDAPComputerObject -ComputerName "SERVER01"
+    Get-LDAPUserObject -UserName "jdoe"
     
-    Retrieves default properties for SERVER01 (same as Get-ADComputer default output).
+    Retrieves default properties for user jdoe (same as Get-ADUser default output).
 
 .EXAMPLE
-    Get-LDAPComputerObject -ComputerName "SERVER01.domain.com" -SearchBy DNSHostName
+    Get-LDAPUserObject -UserName "john.doe@company.com" -SearchBy UserPrincipalName
     
-    Retrieves computer by DNS hostname with default properties.
+    Retrieves user by UPN with default properties.
 
 .EXAMPLE
-    Get-LDAPComputerObject -ComputerName "SERVER01" -Properties "OperatingSystem", "Description"
+    Get-LDAPUserObject -UserName "jdoe" -Properties "Department", "Title", "Manager"
     
-    Retrieves default properties PLUS OperatingSystem and Description for SERVER01.
+    Retrieves default properties PLUS Department, Title, and Manager for jdoe.
 
 .EXAMPLE
-    Get-LDAPComputerObject -ComputerName "SERVER01" -Properties "*"
+    Get-LDAPUserObject -UserName "jdoe" -Properties "*"
     
-    Retrieves all available properties for SERVER01.
+    Retrieves all available properties for jdoe.
 
 .EXAMPLE
-    $computers = 1..1000 | ForEach-Object { "SERVER$_" }
-    Get-LDAPComputerObject -ComputerName $computers -BatchSize 100
+    $users = Import-Csv "users.csv" | Select-Object -ExpandProperty SamAccountName
+    Get-LDAPUserObject -UserName $users -BatchSize 100
     
-    Processes 1000 computers in batches of 100 with progress reporting.
+    Processes users from CSV in batches of 100 with progress reporting.
 
 .OUTPUTS
-    PSCustomObject with Get-ADComputer-compatible property names and structure
+    PSCustomObject with Get-ADUser-compatible property names and structure
 
 .NOTES
     Optimized for PowerShell 5.1 on Windows systems with enterprise-scale batch processing.
     Requires DirectoryServices assemblies (natively available on Windows).
-    Output format and property names are compatible with Get-ADComputer for easy replacement.
+    Output format and property names are compatible with Get-ADUser for easy replacement.
     The function automatically disposes of DirectoryServices objects to prevent resource leaks.
     Includes LDAP injection protection and timeout handling for enterprise environments.
     
@@ -99,7 +100,7 @@ function Get-LDAPComputerObject {
     For best performance with large datasets:
     - Use appropriate BatchSize (100-1000 depending on available memory)
     - Consider using -NoProgress for automated scripts
-    - Monitor memory usage in very large operations (10000+ computers)
+    - Monitor memory usage in very large operations (10000+ users)
 #>
 
     [CmdletBinding()]
@@ -113,12 +114,12 @@ function Get-LDAPComputerObject {
         [ValidateScript({
             foreach ($name in $_) {
                 if ($name -match '[\\\/\(\)\*\&\|\!\=\<\>\~]') {
-                    throw "Computer name '$name' contains invalid characters that could cause LDAP injection."
+                    throw "User name '$name' contains invalid characters that could cause LDAP injection."
                 }
             }
             return $true
         })]
-        [string[]]$ComputerName,
+        [string[]]$UserName,
         
         [Parameter(Mandatory = $false)]
         [string[]]$Properties,
@@ -142,11 +143,11 @@ function Get-LDAPComputerObject {
         [switch]$NoProgress,
         
         [Parameter(Mandatory = $false)]
-        [ValidateSet('SamAccountName', 'DNSHostName', 'Name')]
-        [string]$SearchBy = 'Name'
+        [ValidateSet('SamAccountName', 'UserPrincipalName', 'DisplayName', 'Name')]
+        [string]$SearchBy = 'SamAccountName'
     )
     begin{
-        Write-Verbose "Starting LDAP computer object retrieval"
+        Write-Verbose "Starting LDAP user object retrieval"
         
         # Check for DirectoryServices availability first
         Write-Verbose "Checking DirectoryServices assemblies availability"
@@ -242,8 +243,8 @@ function Get-LDAPComputerObject {
             return
         }
         
-        # Define default properties (same as Get-ADComputer)
-        $defaultProperties = @('Name', 'DNSHostName', 'DistinguishedName', 'Enabled', 'ObjectClass', 'ObjectGUID', 'SamAccountName', 'SID', 'UserPrincipalName')
+        # Define default properties (same as Get-ADUser)
+        $defaultProperties = @('DistinguishedName', 'Enabled', 'GivenName', 'Name', 'ObjectClass', 'ObjectGUID', 'SamAccountName', 'SID', 'Surname', 'UserPrincipalName')
         
         # Single comprehensive mapping from PowerShell property names to LDAP attributes
         $propertyMappings = @{
@@ -251,87 +252,79 @@ function Get-LDAPComputerObject {
             'AccountLockoutTime' = @{ LdapName = 'accountlockouttime'; SpecialHandling = $null }
             'AccountNotDelegated' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'AccountNotDelegated' }
             'AllowReversiblePasswordEncryption' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'AllowReversiblePasswordEncryption' }
-            'AuthenticationPolicy' = @{ LdapName = 'authenticationpolicy'; SpecialHandling = $null }
-            'AuthenticationPolicySilo' = @{ LdapName = 'authenticationpolicysilo'; SpecialHandling = $null }
             'BadLogonCount' = @{ LdapName = 'badpwdcount'; SpecialHandling = $null }
             'CannotChangePassword' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'CannotChangePassword' }
             'CanonicalName' = @{ LdapName = 'canonicalname'; SpecialHandling = $null }
-            'Certificates' = @{ LdapName = 'certificates'; SpecialHandling = $null }
+            'City' = @{ LdapName = 'l'; SpecialHandling = $null }
             'CN' = @{ LdapName = 'cn'; SpecialHandling = $null }
-            'CompoundIdentitySupported' = @{ LdapName = 'compoundidentitysupported'; SpecialHandling = $null }
+            'Company' = @{ LdapName = 'company'; SpecialHandling = $null }
+            'Country' = @{ LdapName = 'c'; SpecialHandling = $null }
             'Created' = @{ LdapName = 'whencreated'; SpecialHandling = $null }
-            'Deleted' = @{ LdapName = 'deleted'; SpecialHandling = $null }
+            'Department' = @{ LdapName = 'department'; SpecialHandling = $null }
             'Description' = @{ LdapName = 'description'; SpecialHandling = $null }
             'DisplayName' = @{ LdapName = 'displayname'; SpecialHandling = $null }
             'DistinguishedName' = @{ LdapName = 'distinguishedname'; SpecialHandling = $null }
-            'DNSHostName' = @{ LdapName = 'dnshostname'; SpecialHandling = $null }
+            'Division' = @{ LdapName = 'division'; SpecialHandling = $null }
             'DoesNotRequirePreAuth' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'DoesNotRequirePreAuth' }
+            'EmailAddress' = @{ LdapName = 'mail'; SpecialHandling = $null }
+            'EmployeeID' = @{ LdapName = 'employeeid'; SpecialHandling = $null }
+            'EmployeeNumber' = @{ LdapName = 'employeenumber'; SpecialHandling = $null }
             'Enabled' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'Enabled' }
+            'Fax' = @{ LdapName = 'facsimiletelephonenumber'; SpecialHandling = $null }
+            'GivenName' = @{ LdapName = 'givenname'; SpecialHandling = $null }
             'HomeDirectory' = @{ LdapName = 'homedirectory'; SpecialHandling = $null }
             'HomeDrive' = @{ LdapName = 'homedrive'; SpecialHandling = $null }
-            'HomePage' = @{ LdapName = 'homepage'; SpecialHandling = $null }
-            'IPv4Address' = @{ LdapName = 'ipv4address'; SpecialHandling = $null }
-            'IPv6Address' = @{ LdapName = 'ipv6address'; SpecialHandling = $null }
-            'KerberosEncryptionType' = @{ LdapName = 'kerberosencryptiontype'; SpecialHandling = $null }
+            'HomePhone' = @{ LdapName = 'homephone'; SpecialHandling = $null }
+            'Initials' = @{ LdapName = 'initials'; SpecialHandling = $null }
             'LastBadPasswordAttempt' = @{ LdapName = 'badpasswordtime'; SpecialHandling = 'LastBadPasswordAttempt' }
-            'LastKnownParent' = @{ LdapName = 'lastknownparent'; SpecialHandling = $null }
             'LastLogonDate' = @{ LdapName = 'lastlogontimestamp'; SpecialHandling = 'LastLogonDate' }
-            'LocalPolicyFlags' = @{ LdapName = 'localpolicyflags'; SpecialHandling = $null }
-            'Location' = @{ LdapName = 'location'; SpecialHandling = $null }
-            'LockedOut' = @{ LdapName = 'lockedout'; SpecialHandling = $null }
-            'ManagedBy' = @{ LdapName = 'managedby'; SpecialHandling = $null }
+            'LockoutTime' = @{ LdapName = 'lockouttime'; SpecialHandling = 'LockoutTime' }
+            'LogonWorkstations' = @{ LdapName = 'userworkstations'; SpecialHandling = $null }
+            'Manager' = @{ LdapName = 'manager'; SpecialHandling = $null }
             'MemberOf' = @{ LdapName = 'memberof'; SpecialHandling = $null }
-            'MNSLogonAccount' = @{ LdapName = 'mnslogonaccount'; SpecialHandling = $null }
+            'MobilePhone' = @{ LdapName = 'mobile'; SpecialHandling = $null }
             'Modified' = @{ LdapName = 'whenchanged'; SpecialHandling = $null }
             'Name' = @{ LdapName = 'name'; SpecialHandling = $null }
             'ObjectCategory' = @{ LdapName = 'objectcategory'; SpecialHandling = $null }
             'ObjectClass' = @{ LdapName = 'objectclass'; SpecialHandling = 'ObjectClass' }
             'ObjectGUID' = @{ LdapName = 'objectguid'; SpecialHandling = 'ObjectGUID' }
-            'OperatingSystem' = @{ LdapName = 'operatingsystem'; SpecialHandling = $null }
-            'OperatingSystemHotfix' = @{ LdapName = 'operatingsystemhotfix'; SpecialHandling = $null }
-            'OperatingSystemServicePack' = @{ LdapName = 'operatingsystemservicepack'; SpecialHandling = $null }
-            'OperatingSystemVersion' = @{ LdapName = 'operatingsystemversion'; SpecialHandling = $null }
-            'PasswordExpired' = @{ LdapName = 'passwordexpired'; SpecialHandling = $null }
+            'Office' = @{ LdapName = 'physicaldeliveryofficename'; SpecialHandling = $null }
+            'OfficePhone' = @{ LdapName = 'telephonenumber'; SpecialHandling = $null }
+            'Organization' = @{ LdapName = 'o'; SpecialHandling = $null }
+            'OtherName' = @{ LdapName = 'middlename'; SpecialHandling = $null }
             'PasswordLastSet' = @{ LdapName = 'pwdlastset'; SpecialHandling = 'PasswordLastSet' }
             'PasswordNeverExpires' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'PasswordNeverExpires' }
             'PasswordNotRequired' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'PasswordNotRequired' }
-            'PrimaryGroup' = @{ LdapName = 'primarygroupid'; SpecialHandling = $null }
-            'PrincipalsAllowedToDelegateToAccount' = @{ LdapName = 'principalsallowedtodelegatetoaccount'; SpecialHandling = $null }
-            'ProtectedFromAccidentalDeletion' = @{ LdapName = 'protectedfromaccidentaldeletion'; SpecialHandling = $null }
+            'POBox' = @{ LdapName = 'postofficebox'; SpecialHandling = $null }
+            'PostalCode' = @{ LdapName = 'postalcode'; SpecialHandling = $null }
+            'PrimaryGroupID' = @{ LdapName = 'primarygroupid'; SpecialHandling = $null }
+            'ProfilePath' = @{ LdapName = 'profilepath'; SpecialHandling = $null }
             'SamAccountName' = @{ LdapName = 'samaccountname'; SpecialHandling = $null }
-            'ServiceAccount' = @{ LdapName = 'serviceaccount'; SpecialHandling = $null }
-            'ServicePrincipalNames' = @{ LdapName = 'serviceprincipalname'; SpecialHandling = $null }
+            'ScriptPath' = @{ LdapName = 'scriptpath'; SpecialHandling = $null }
             'SID' = @{ LdapName = 'objectsid'; SpecialHandling = 'SID' }
-            'SIDHistory' = @{ LdapName = 'sidhistory'; SpecialHandling = $null }
+            'SmartcardLogonRequired' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'SmartcardLogonRequired' }
+            'State' = @{ LdapName = 'st'; SpecialHandling = $null }
+            'StreetAddress' = @{ LdapName = 'streetaddress'; SpecialHandling = $null }
+            'Surname' = @{ LdapName = 'sn'; SpecialHandling = $null }
+            'Title' = @{ LdapName = 'title'; SpecialHandling = $null }
             'TrustedForDelegation' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'TrustedForDelegation' }
             'TrustedToAuthForDelegation' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'TrustedToAuthForDelegation' }
-            'UseDESKeyOnly' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'UseDESKeyOnly' }
+            'UseDesKeyOnly' = @{ LdapName = 'useraccountcontrol'; SpecialHandling = 'UseDesKeyOnly' }
             'UserCertificate' = @{ LdapName = 'usercertificate'; SpecialHandling = $null }
             'UserPrincipalName' = @{ LdapName = 'userprincipalname'; SpecialHandling = $null }
             # Additional LDAP-to-PowerShell mappings for properties that don't follow standard naming
             'adspath' = @{ LdapName = 'adspath'; SpecialHandling = $null }
+            'admincount' = @{ LdapName = 'admincount'; SpecialHandling = $null }
             'badPasswordTime' = @{ LdapName = 'badpasswordtime'; SpecialHandling = $null }
             'codePage' = @{ LdapName = 'codepage'; SpecialHandling = $null }
             'countryCode' = @{ LdapName = 'countrycode'; SpecialHandling = $null }
-            'createTimeStamp' = @{ LdapName = 'createtimestamp'; SpecialHandling = $null }
             'dSCorePropagationData' = @{ LdapName = 'dscorepropagationdata'; SpecialHandling = $null }
-            'HomedirRequired' = @{ LdapName = 'homedirrerequired'; SpecialHandling = $null }
             'instanceType' = @{ LdapName = 'instancetype'; SpecialHandling = $null }
             'isCriticalSystemObject' = @{ LdapName = 'iscriticalsystemobject'; SpecialHandling = $null }
-            'isDeleted' = @{ LdapName = 'isdeleted'; SpecialHandling = $null }
             'lastLogoff' = @{ LdapName = 'lastlogoff'; SpecialHandling = $null }
             'lastLogon' = @{ LdapName = 'lastlogon'; SpecialHandling = $null }
             'logonCount' = @{ LdapName = 'logoncount'; SpecialHandling = $null }
-            'modifyTimeStamp' = @{ LdapName = 'modifytimestamp'; SpecialHandling = $null }
-            'msDFSR-ComputerReferenceBL' = @{ LdapName = 'msdfsr-computerreferencebl'; SpecialHandling = $null }
-            'msDS-GenerationId' = @{ LdapName = 'msds-generationid'; SpecialHandling = $null }
-            'msDS-SupportedEncryptionTypes' = @{ LdapName = 'msds-supportedencryptiontypes'; SpecialHandling = $null }
-            'msDS-User-Account-Control-Computed' = @{ LdapName = 'msds-user-account-control-computed'; SpecialHandling = $null }
-            'nTSecurityDescriptor' = @{ LdapName = 'ntsecuritydescriptor'; SpecialHandling = $null }
-            'rIDSetReferences' = @{ LdapName = 'ridsetreferences'; SpecialHandling = $null }
             'sAMAccountType' = @{ LdapName = 'samaccounttype'; SpecialHandling = $null }
-            'sDRightsEffective' = @{ LdapName = 'sdrightseffective'; SpecialHandling = $null }
-            'serverReferenceBL' = @{ LdapName = 'serverreferencebl'; SpecialHandling = $null }
             'uSNChanged' = @{ LdapName = 'usnchanged'; SpecialHandling = $null }
             'uSNCreated' = @{ LdapName = 'usncreated'; SpecialHandling = $null }
         }
@@ -347,7 +340,7 @@ function Get-LDAPComputerObject {
         
         # Combine default properties with additional properties requested
         if ($Properties) {
-            # Add requested properties to defaults (like Get-ADComputer behavior)
+            # Add requested properties to defaults (like Get-ADUser behavior)
             $allProperties = $defaultProperties + $Properties | Select-Object -Unique
         } else {
             # Use only default properties if none specified
@@ -362,9 +355,9 @@ function Get-LDAPComputerObject {
         $directoryEntry = $null
         
         # Initialize batch processing variables
-        $computerQueue = [System.Collections.Generic.List[string]]::new()
+        $userQueue = [System.Collections.Generic.List[string]]::new()
         $processedCount = 0
-        $totalComputers = 0
+        $totalUsers = 0
         $batchNumber = 0
         
         try {
@@ -454,38 +447,38 @@ function Get-LDAPComputerObject {
     }
 
     process{
-        # Add computers to the queue for batch processing
-        foreach($comName in $ComputerName) {
-            $computerQueue.Add($comName)
-            $totalComputers++
+        # Add users to the queue for batch processing
+        foreach($userName in $UserName) {
+            $userQueue.Add($userName)
+            $totalUsers++
         }
     }
 
     end {
         try {
-            # Process computers in batches
-            Write-Verbose "Processing $totalComputers computers in batches of $BatchSize"
+            # Process users in batches
+            Write-Verbose "Processing $totalUsers users in batches of $BatchSize"
             
-            for ($i = 0; $i -lt $computerQueue.Count; $i += $BatchSize) {
+            for ($i = 0; $i -lt $userQueue.Count; $i += $BatchSize) {
                 $batchNumber++
-                $batchEnd = [Math]::Min($i + $BatchSize - 1, $computerQueue.Count - 1)
-                $currentBatch = $computerQueue.GetRange($i, ($batchEnd - $i + 1))
+                $batchEnd = [Math]::Min($i + $BatchSize - 1, $userQueue.Count - 1)
+                $currentBatch = $userQueue.GetRange($i, ($batchEnd - $i + 1))
                 
                 if (-not $NoProgress) {
                     $progressParams = @{
-                        Activity = "Processing AD Computer Objects"
-                        Status = "Batch $batchNumber - Processing computers $($i + 1) to $($batchEnd + 1) of $totalComputers"
-                        PercentComplete = [Math]::Round(($i / $computerQueue.Count) * 100, 1)
-                        CurrentOperation = "Current batch size: $($currentBatch.Count) computers"
+                        Activity = "Processing AD User Objects"
+                        Status = "Batch $batchNumber - Processing users $($i + 1) to $($batchEnd + 1) of $totalUsers"
+                        PercentComplete = [Math]::Round(($i / $userQueue.Count) * 100, 1)
+                        CurrentOperation = "Current batch size: $($currentBatch.Count) users"
                     }
                     Write-Progress @progressParams
                 }
                 
-                Write-Verbose "Processing batch $batchNumber with $($currentBatch.Count) computers"
+                Write-Verbose "Processing batch $batchNumber with $($currentBatch.Count) users"
                 
                 # Process current batch
                 $batchProcessedCount = 0
-                foreach($comName in $currentBatch) {
+                foreach($userName in $currentBatch) {
                     $batchProcessedCount++
                     $processedCount++
                     $result = $null
@@ -493,41 +486,42 @@ function Get-LDAPComputerObject {
                     # Update progress for individual items in large batches
                     if (-not $NoProgress -and $currentBatch.Count -gt 50) {
                         $batchProgress = [Math]::Round(($batchProcessedCount / $currentBatch.Count) * 100, 1)
-                        Write-Progress -Id 1 -ParentId 0 -Activity "Processing Batch $batchNumber" -Status "Computer: $comName" -PercentComplete $batchProgress
+                        Write-Progress -Id 1 -ParentId 0 -Activity "Processing Batch $batchNumber" -Status "User: $userName" -PercentComplete $batchProgress
                     }
 
-                    Write-Verbose "Processing computer: $comName (Overall: $processedCount/$totalComputers)"
+                    Write-Verbose "Processing user: $userName (Overall: $processedCount/$totalUsers)"
 
-                    # Sanitize computer name for LDAP filter (additional safety for PS 5.1)
-                    $sanitizedName = $comName -replace '[\\\/\(\)\*\&\|\!\=\<\>\~]', ''
-                    if ($sanitizedName -ne $comName) {
-                        Write-Warning "Computer name '$comName' contained special characters and was sanitized to '$sanitizedName'"
+                    # Sanitize user name for LDAP filter (additional safety for PS 5.1)
+                    $sanitizedName = $userName -replace '[\\\/\(\)\*\&\|\!\=\<\>\~]', ''
+                    if ($sanitizedName -ne $userName) {
+                        Write-Warning "User name '$userName' contained special characters and was sanitized to '$sanitizedName'"
                     }
 
                     # Build LDAP filter based on search attribute
                     $searchAttribute = switch ($SearchBy) {
                         'SamAccountName' { 'samaccountname' }
-                        'DNSHostName' { 'dnshostname' }
+                        'UserPrincipalName' { 'userprincipalname' }
+                        'DisplayName' { 'displayname' }
                         'Name' { 'name' }
-                        default { 'name' }
+                        default { 'samaccountname' }
                     }
                     
-                    # Set the filter for computer objects
-                    $searcher.Filter = "(&(objectClass=computer)($searchAttribute=$sanitizedName))"
+                    # Set the filter for user objects
+                    $searcher.Filter = "(&(objectClass=user)(objectCategory=person)($searchAttribute=$sanitizedName))"
 
                     try {
                         $result = $searcher.FindOne()
 
                         if ($null -eq $result) {
-                            Write-Warning "Computer '$comName' not found in Active Directory"
+                            Write-Warning "User '$userName' not found in Active Directory"
                             continue
                         }
 
-                        Write-Verbose "Found computer '$comName' in Active Directory"
+                        Write-Verbose "Found user '$userName' in Active Directory"
                         
-                        # Create computer object with Get-ADComputer-like structure and property order
+                        # Create user object with Get-ADUser-like structure and property order
                         # Use ordered hashtable with estimated capacity for memory efficiency
-                        $computerObject = [ordered]@{}
+                        $userObject = [ordered]@{}
                         
                         # Pre-allocate property hash with estimated size to reduce memory reallocations
                         $propertyHash = [hashtable]::new($result.Properties.PropertyNames.Count)
@@ -552,111 +546,124 @@ function Get-LDAPComputerObject {
                                         'Enabled' {
                                             $uacValue = $propertyValues[0]
                                             $enabled = -not ($uacValue -band 2)
-                                            $computerObject[$Name] = $enabled
+                                            $userObject[$Name] = $enabled
                                         }
                                         'PasswordNeverExpires' {
                                             $uacValue = $propertyValues[0]
                                             $passwordNeverExpires = ($uacValue -band 65536) -ne 0
-                                            $computerObject[$Name] = $passwordNeverExpires
+                                            $userObject[$Name] = $passwordNeverExpires
                                         }
                                         'CannotChangePassword' {
                                             $uacValue = $propertyValues[0]
                                             $cannotChangePassword = ($uacValue -band 64) -ne 0
-                                            $computerObject[$Name] = $cannotChangePassword
+                                            $userObject[$Name] = $cannotChangePassword
                                         }
                                         'PasswordNotRequired' {
                                             $uacValue = $propertyValues[0]
                                             $passwordNotRequired = ($uacValue -band 32) -ne 0
-                                            $computerObject[$Name] = $passwordNotRequired
+                                            $userObject[$Name] = $passwordNotRequired
                                         }
                                         'AllowReversiblePasswordEncryption' {
                                             $uacValue = $propertyValues[0]
                                             $allowReversiblePasswordEncryption = ($uacValue -band 128) -ne 0
-                                            $computerObject[$Name] = $allowReversiblePasswordEncryption
+                                            $userObject[$Name] = $allowReversiblePasswordEncryption
                                         }
                                         'AccountNotDelegated' {
                                             $uacValue = $propertyValues[0]
                                             $accountNotDelegated = ($uacValue -band 1048576) -ne 0
-                                            $computerObject[$Name] = $accountNotDelegated
+                                            $userObject[$Name] = $accountNotDelegated
                                         }
-                                        'UseDESKeyOnly' {
+                                        'UseDesKeyOnly' {
                                             $uacValue = $propertyValues[0]
-                                            $useDESKeyOnly = ($uacValue -band 2097152) -ne 0
-                                            $computerObject[$Name] = $useDESKeyOnly
+                                            $useDesKeyOnly = ($uacValue -band 2097152) -ne 0
+                                            $userObject[$Name] = $useDesKeyOnly
                                         }
                                         'ObjectGUID' {
                                             if ($propertyValues[0] -is [byte[]]) {
                                                 $guid = New-Object System.Guid(,$propertyValues[0])
-                                                $computerObject[$Name] = $guid.ToString()
+                                                $userObject[$Name] = $guid.ToString()
                                             } else {
-                                                $computerObject[$Name] = $propertyValues[0]
+                                                $userObject[$Name] = $propertyValues[0]
                                             }
                                         }
                                         'SID' {
                                             if ($propertyValues[0] -is [byte[]]) {
                                                 $sid = New-Object System.Security.Principal.SecurityIdentifier($propertyValues[0], 0)
-                                                $computerObject[$Name] = $sid
+                                                $userObject[$Name] = $sid
                                             } else {
-                                                $computerObject[$Name] = $propertyValues[0]
+                                                $userObject[$Name] = $propertyValues[0]
                                             }
                                         }
                                         'ObjectClass' {
-                                            $computerObject[$Name] = 'computer'
+                                            $userObject[$Name] = 'user'
                                         }
                                         'AccountExpirationDate' {
                                             $accountExpires = $propertyValues[0]
                                             if ($accountExpires -eq 0 -or $accountExpires -eq 9223372036854775807) {
-                                                $computerObject[$Name] = $null
+                                                $userObject[$Name] = $null
                                             } else {
-                                                $computerObject[$Name] = [DateTime]::FromFileTime($accountExpires)
+                                                $userObject[$Name] = [DateTime]::FromFileTime($accountExpires)
                                             }
                                         }
                                         'LastLogonDate' {
                                             $lastLogon = $propertyValues[0]
                                             if ($lastLogon -eq 0) {
-                                                $computerObject[$Name] = $null
+                                                $userObject[$Name] = $null
                                             } else {
-                                                $computerObject[$Name] = [DateTime]::FromFileTime($lastLogon)
+                                                $userObject[$Name] = [DateTime]::FromFileTime($lastLogon)
                                             }
                                         }
                                         'PasswordLastSet' {
                                             $pwdLastSet = $propertyValues[0]
                                             if ($pwdLastSet -eq 0) {
-                                                $computerObject[$Name] = $null
+                                                $userObject[$Name] = $null
                                             } else {
-                                                $computerObject[$Name] = [DateTime]::FromFileTime($pwdLastSet)
+                                                $userObject[$Name] = [DateTime]::FromFileTime($pwdLastSet)
+                                            }
+                                        }
+                                        'LockoutTime' {
+                                            $lockoutTime = $propertyValues[0]
+                                            if ($lockoutTime -eq 0) {
+                                                $userObject[$Name] = $null
+                                            } else {
+                                                $userObject[$Name] = [DateTime]::FromFileTime($lockoutTime)
                                             }
                                         }
                                         'TrustedForDelegation' {
                                             $uacValue = $propertyValues[0]
                                             $trustedForDelegation = ($uacValue -band 524288) -ne 0
-                                            $computerObject[$Name] = $trustedForDelegation
+                                            $userObject[$Name] = $trustedForDelegation
                                         }
                                         'TrustedToAuthForDelegation' {
                                             $uacValue = $propertyValues[0]
                                             $trustedToAuthForDelegation = ($uacValue -band 16777216) -ne 0
-                                            $computerObject[$Name] = $trustedToAuthForDelegation
+                                            $userObject[$Name] = $trustedToAuthForDelegation
                                         }
                                         'DoesNotRequirePreAuth' {
                                             $uacValue = $propertyValues[0]
                                             $doesNotRequirePreAuth = ($uacValue -band 4194304) -ne 0
-                                            $computerObject[$Name] = $doesNotRequirePreAuth
+                                            $userObject[$Name] = $doesNotRequirePreAuth
+                                        }
+                                        'SmartcardLogonRequired' {
+                                            $uacValue = $propertyValues[0]
+                                            $smartcardLogonRequired = ($uacValue -band 262144) -ne 0
+                                            $userObject[$Name] = $smartcardLogonRequired
                                         }
                                         'LastBadPasswordAttempt' {
                                             $badPasswordTime = $propertyValues[0]
                                             if ($badPasswordTime -eq 0) {
-                                                $computerObject[$Name] = $null
+                                                $userObject[$Name] = $null
                                             } else {
-                                                $computerObject[$Name] = [DateTime]::FromFileTime($badPasswordTime)
+                                                $userObject[$Name] = [DateTime]::FromFileTime($badPasswordTime)
                                             }
                                         }
                                         default {
                                             if ($propertyValues.Count -eq 1) {
-                                                $computerObject[$Name] = $propertyValues[0]
+                                                $userObject[$Name] = $propertyValues[0]
                                             } else {
-                                                $computerObject[$Name] = ($propertyValues -join ', ')
+                                                $userObject[$Name] = ($propertyValues -join ', ')
                                                 if ($propertyValues.Count -gt 1) {
-                                                    Write-Verbose "Property '$Name' for computer '$comName' has multiple values: $($propertyValues -join ', ')"
+                                                    Write-Verbose "Property '$Name' for user '$userName' has multiple values: $($propertyValues -join ', ')"
                                                 }
                                             }
                                         }
@@ -664,27 +671,28 @@ function Get-LDAPComputerObject {
                                 } else {
                                     # Property not found, add as null if it was specifically requested
                                     if ($allProperties -contains $Name) {
-                                        $computerObject[$Name] = $null
+                                        $userObject[$Name] = $null
                                     }
                                 }
                             }
                         }
                         
-                        # Add properties in Get-ADComputer order using centralized mapping
+                        # Add properties in Get-ADUser order using centralized mapping
                         & $addProperty 'DistinguishedName' 'distinguishedname'
-                        & $addProperty 'DNSHostName' 'dnshostname'
                         & $addProperty 'Enabled' 'useraccountcontrol'
+                        & $addProperty 'GivenName' 'givenname'
                         & $addProperty 'Name' 'name'
                         & $addProperty 'ObjectClass' 'objectclass'
                         & $addProperty 'ObjectGUID' 'objectguid'
                         & $addProperty 'SamAccountName' 'samaccountname'
                         & $addProperty 'SID' 'objectsid'
+                        & $addProperty 'Surname' 'sn'
                         & $addProperty 'UserPrincipalName' 'userprincipalname'
                         
                         # Add any additional requested properties
                         if ($Properties) {
                             $additionalProps = $Properties | Where-Object { 
-                                $_ -notin @('DistinguishedName', 'DNSHostName', 'Enabled', 'Name', 'ObjectClass', 'ObjectGUID', 'SamAccountName', 'SID', 'UserPrincipalName', '*') 
+                                $_ -notin @('DistinguishedName', 'Enabled', 'GivenName', 'Name', 'ObjectClass', 'ObjectGUID', 'SamAccountName', 'SID', 'Surname', 'UserPrincipalName', '*') 
                             } | Sort-Object
                             foreach ($prop in $additionalProps) {
                                 # Use centralized mapping
@@ -697,30 +705,30 @@ function Get-LDAPComputerObject {
                                 }
                             }
                             
-                            # Sort ALL properties alphabetically (like Get-ADComputer) when additional properties are requested
-                            $sortedComputerObject = [ordered]@{}
-                            $allPropsToSort = $computerObject.Keys | Sort-Object
+                            # Sort ALL properties alphabetically (like Get-ADUser) when additional properties are requested
+                            $sortedUserObject = [ordered]@{}
+                            $allPropsToSort = $userObject.Keys | Sort-Object
                             
                             foreach ($prop in $allPropsToSort) {
-                                $sortedComputerObject[$prop] = $computerObject[$prop]
+                                $sortedUserObject[$prop] = $userObject[$prop]
                             }
                             
-                            # Replace the original computer object with the sorted one
-                            $computerObject = $sortedComputerObject
+                            # Replace the original user object with the sorted one
+                            $userObject = $sortedUserObject
                         }
                         
                         # If loading all properties, add remaining ones alphabetically
                         if ($loadAllProperties) {
-                            # Sort ALL properties alphabetically when loading all properties (like Get-ADComputer)
-                            $sortedComputerObject = [ordered]@{}
-                            $allPropsToSort = $computerObject.Keys | Sort-Object
+                            # Sort ALL properties alphabetically when loading all properties (like Get-ADUser)
+                            $sortedUserObject = [ordered]@{}
+                            $allPropsToSort = $userObject.Keys | Sort-Object
                             
                             foreach ($prop in $allPropsToSort) {
-                                $sortedComputerObject[$prop] = $computerObject[$prop]
+                                $sortedUserObject[$prop] = $userObject[$prop]
                             }
                             
-                            # Replace the original computer object with the sorted one
-                            $computerObject = $sortedComputerObject
+                            # Replace the original user object with the sorted one
+                            $userObject = $sortedUserObject
                             
                             $remainingProps = $propertyHash.Keys | Where-Object { 
                                 # Use centralized reverse mapping
@@ -729,7 +737,7 @@ function Get-LDAPComputerObject {
                                 } else {
                                     $_
                                 }
-                                -not $computerObject.Contains($propName)
+                                -not $userObject.Contains($propName)
                             } | Sort-Object
                             
                             foreach ($ldapProp in $remainingProps) {
@@ -745,44 +753,44 @@ function Get-LDAPComputerObject {
                             }
                             
                             # Sort ALL properties alphabetically again after adding remaining properties
-                            $finalSortedComputerObject = [ordered]@{}
-                            $finalPropsToSort = $computerObject.Keys | Sort-Object
+                            $finalSortedUserObject = [ordered]@{}
+                            $finalPropsToSort = $userObject.Keys | Sort-Object
                             
                             foreach ($prop in $finalPropsToSort) {
-                                $finalSortedComputerObject[$prop] = $computerObject[$prop]
+                                $finalSortedUserObject[$prop] = $userObject[$prop]
                             }
                             
-                            $computerObject = $finalSortedComputerObject
+                            $userObject = $finalSortedUserObject
                         }
                         
                         # Convert ordered hashtable to PSCustomObject
-                        $computerObjectFinal = [PSCustomObject]$computerObject
+                        $userObjectFinal = [PSCustomObject]$userObject
                         
-                        [void]$output.Add($computerObjectFinal)
-                        Write-Verbose "Successfully processed computer: $comName"
+                        [void]$output.Add($userObjectFinal)
+                        Write-Verbose "Successfully processed user: $userName"
                         
                         # Explicit cleanup for large result sets (PowerShell 5.1 optimization)
                         $result = $null
                         $propertyHash.Clear()
                         $propertyHash = $null
-                        $computerObject = $null
+                        $userObject = $null
                     }
                     catch [System.Runtime.InteropServices.COMException] {
                         # Handle COM exceptions (more generic than DirectoryServiceCOMException)
                         $errorCode = $_.Exception.HResult
                         if ($errorCode -eq -2147016672) {
-                            Write-Error "Access denied while querying computer '$comName'. You may not have sufficient permissions to query Active Directory."
+                            Write-Error "Access denied while querying user '$userName'. You may not have sufficient permissions to query Active Directory."
                         } else {
-                            Write-Error "Directory Services error while processing computer '$comName': $($_.Exception.Message)"
+                            Write-Error "Directory Services error while processing user '$userName': $($_.Exception.Message)"
                         }
                         continue
                     }
                     catch [System.UnauthorizedAccessException] {
-                        Write-Error "Access denied while querying computer '$comName'. You may not have sufficient permissions to query Active Directory."
+                        Write-Error "Access denied while querying user '$userName'. You may not have sufficient permissions to query Active Directory."
                         continue
                     }
                     catch {
-                        Write-Error "Error processing computer '$comName': $($_.Exception.Message)"
+                        Write-Error "Error processing user '$userName': $($_.Exception.Message)"
                         continue
                     }
                 }
@@ -802,7 +810,7 @@ function Get-LDAPComputerObject {
             
             # Clear main progress bar
             if (-not $NoProgress) {
-                Write-Progress -Activity "Processing AD Computer Objects" -Completed
+                Write-Progress -Activity "Processing AD User Objects" -Completed
             }
         }
         finally {
@@ -828,7 +836,7 @@ function Get-LDAPComputerObject {
             }
         }
         
-        Write-Verbose "LDAP computer object retrieval completed. Found $($output.Count) objects out of $totalComputers requested."
+        Write-Verbose "LDAP user object retrieval completed. Found $($output.Count) objects out of $totalUsers requested."
         
         # Return array and help GC by clearing the ArrayList reference
         if ($output) {
@@ -839,9 +847,9 @@ function Get-LDAPComputerObject {
             $result = @()
         }
         
-        if ($computerQueue) {
-            $computerQueue.Clear()
-            $computerQueue = $null
+        if ($userQueue) {
+            $userQueue.Clear()
+            $userQueue = $null
         }
         
         return $result
