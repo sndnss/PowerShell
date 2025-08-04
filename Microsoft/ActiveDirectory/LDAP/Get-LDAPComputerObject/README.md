@@ -1,7 +1,8 @@
 # Get-LDAPComputerObject
-High-performance Active Directory computer object retrieval using direct LDAP queries with Get-ADComputer compatibility
+Retrieves Active Directory computer object information using efficient LDAP queries with flexible property selection and Get-ADComputer compatibility.
 
 ## Table of Contents
+- [Version Changes](#version-changes)
 - [Overview](#overview)
 - [Features](#features)
 - [Performance](#performance)
@@ -13,6 +14,23 @@ High-performance Active Directory computer object retrieval using direct LDAP qu
 - [Performance Optimization](#performance-optimization)
 - [Troubleshooting](#troubleshooting)
 - [Compatibility](#compatibility)
+
+## Version Changes
+##### 1.1.0.0 (Current)
+- **Enhanced Error Handling**: Improved support for non-domain computers and workgroup environments
+- **Assembly Validation**: DirectoryServices availability check before function execution
+- **Early Connectivity Testing**: Pre-flight Active Directory connectivity validation with clear error messages
+- **Robust Exception Handling**: Generic COM exception handling for better cross-platform compatibility
+- **Graceful Failure**: Clean error messages with actionable guidance for common issues
+- **Network-Aware**: Better detection and handling of disconnected/non-domain scenarios
+- **Memory Safety**: Improved null-safe operations and resource cleanup
+
+##### 1.0.0.0
+- First version published on GitHub
+- High-performance LDAP queries with Get-ADComputer compatibility
+- Batch processing for large datasets
+- Memory optimization and garbage collection
+- Pipeline input/output support
 
 ## Overview
 Get-LDAPComputerObject is a high-performance PowerShell function that retrieves Active Directory computer object information using direct LDAP queries. It provides significant performance improvements over Get-ADComputer while maintaining full output compatibility.
@@ -37,8 +55,16 @@ Get-LDAPComputerObject is a high-performance PowerShell function that retrieves 
 - **Multi-Domain Support**: Query computers across different domains
 - **Credential Management**: Custom credentials for cross-domain operations
 - **Property Flexibility**: Retrieve specific properties or all available properties
-- **Error Handling**: Comprehensive error handling and logging
+- **Error Handling**: Comprehensive error handling and logging with early connectivity validation
 - **Security**: LDAP injection protection and input validation
+- **Network-Aware**: Intelligent detection of domain connectivity and DirectoryServices availability
+
+### Reliability Enhancements (v1.1.0.0)
+- **Pre-flight Checks**: Active Directory connectivity validation before processing
+- **Assembly Validation**: DirectoryServices availability verification
+- **Graceful Degradation**: Clean error messages for non-domain environments
+- **Resource Safety**: Improved null-safe operations and memory management
+- **Cross-Platform Ready**: Enhanced COM exception handling for better compatibility
 
 ### Compatibility
 - **Get-ADComputer Compatible**: Drop-in replacement with identical output format
@@ -74,11 +100,18 @@ Get-LDAPComputerObject is a high-performance PowerShell function that retrieves 
 - PowerShell 5.1 or higher
 - Windows operating system (DirectoryServices assemblies)
 - Network connectivity to domain controllers
+- Domain-joined computer OR appropriate credentials for remote domain access
 
 ### Permissions
 - Domain user account (minimum)
 - Read access to Active Directory computer objects
 - Network access to query domain controllers
+
+### Environment Compatibility
+- **Domain-joined computers**: Full functionality with current user credentials
+- **Workgroup computers**: Requires explicit credentials and DirectoryServices components
+- **Remote analysis**: Cross-domain operations with appropriate credentials
+- **Disconnected scenarios**: Clear error messages with actionable guidance
 
 ### Optional Requirements
 - Cross-domain credentials for multi-domain operations
@@ -318,21 +351,37 @@ Use `-Properties *` to retrieve all available AD properties for the computer obj
 
 ### Common Issues
 
+#### "System.DirectoryServices is not available on this system"
+**Cause:** Missing DirectoryServices assemblies (typically on non-Windows systems or minimal installations)  
+**Solutions:**
+- Ensure running on Windows with DirectoryServices components
+- Install Remote Server Administration Tools (RSAT) if missing
+- Verify PowerShell can load System.DirectoryServices assembly
+
+#### "This computer is not joined to an Active Directory domain"
+**Cause:** Function running on workgroup computer without domain connectivity  
+**Solutions:**
+- Join computer to Active Directory domain
+- Use -Domain and -Credential parameters for remote domain access
+- Verify network connectivity to target domain controllers
+- Ensure DNS resolution for target domain
+
 #### "Cannot contact domain controller"
 **Cause:** Network connectivity or DNS resolution issues  
 **Solutions:**
-- Verify domain controller accessibility
-- Check DNS configuration
-- Test with specific domain parameter
-- Verify credentials for cross-domain access
+- Verify domain controller accessibility with Test-NetConnection
+- Check DNS configuration and domain controller resolution
+- Test with specific domain parameter and credentials
+- Verify firewall allows LDAP traffic (ports 389/636)
 
 #### "Access denied" errors
-**Cause:** Insufficient permissions  
+**Cause:** Insufficient permissions or authentication issues  
 **Solutions:**
-- Verify domain user account has read access
-- Check for restrictions on computer object access
-- Use appropriate credentials for cross-domain queries
-- Verify account is not locked or disabled
+- Verify domain user account has read access to computer objects
+- Check for restrictions on computer object access in AD
+- Use appropriate credentials for cross-domain queries with -Credential
+- Verify account is not locked, disabled, or password expired
+- Ensure account has "Log on as a service" rights if needed
 
 #### Performance issues
 **Cause:** Suboptimal batch size or network conditions  
@@ -355,15 +404,30 @@ Use `-Properties *` to retrieve all available AD properties for the computer obj
 # Enable verbose output for troubleshooting
 Get-LDAPComputerObject -ComputerName "SERVER01" -Verbose
 
-# Test with minimal properties first
-Get-LDAPComputerObject -ComputerName "SERVER01"
-
-# Verify domain connectivity
+# Test connectivity before running function
 Test-NetConnection -ComputerName "domain.com" -Port 389
 
-# Check LDAP connectivity
+# Verify DirectoryServices availability
+Add-Type -AssemblyName System.DirectoryServices
+
+# Test with minimal properties and single computer first
+Get-LDAPComputerObject -ComputerName "SERVER01"
+
+# Test cross-domain access
+$cred = Get-Credential
+Get-LDAPComputerObject -ComputerName "SERVER01" -Domain "remote.domain.com" -Credential $cred
+
+# Check LDAP connectivity to domain controller
 Test-NetConnection -ComputerName "dc01.domain.com" -Port 389
 ```
+
+### Error Message Reference
+| Error Message | Meaning | Solution |
+|---------------|---------|----------|
+| "System.DirectoryServices is not available" | Missing DirectoryServices assemblies | Install RSAT or ensure Windows DirectoryServices components |
+| "not joined to an Active Directory domain" | Workgroup computer or no domain connectivity | Join domain or use -Domain/-Credential parameters |
+| "Unable to query Active Directory" | Network/connectivity issue | Check network, DNS, and domain controller accessibility |
+| "Access denied" | Permission or authentication issue | Verify credentials and AD permissions |
 
 ## Compatibility
 

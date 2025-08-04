@@ -2,7 +2,7 @@
 
 .DESCRIPTION Retrieves Active Directory computer object information using efficient LDAP queries with flexible property selection and Get-ADComputer compatibility.
 
-.VERSION 1.0.0.0
+.VERSION 1.1.0.0
 
 .GUID 99b42518-c711-49b8-92ea-01b7b3507a91
 
@@ -135,6 +135,100 @@ function Get-LDAPComputerObject {
     begin{
         Write-Verbose "Starting LDAP computer object retrieval"
         
+        # Check for DirectoryServices availability first
+        Write-Verbose "Checking DirectoryServices assemblies availability"
+        try {
+            # Try to load DirectoryServices assemblies
+            Add-Type -AssemblyName System.DirectoryServices -ErrorAction Stop
+            Write-Verbose "DirectoryServices assemblies loaded successfully"
+        }
+        catch {
+            Write-Error "System.DirectoryServices is not available on this system. This function requires Windows with DirectoryServices components installed. Ensure you are running on a Windows system with Active Directory tools available." -ErrorAction Stop
+            return
+        }
+        
+        # Early Active Directory connectivity check
+        Write-Verbose "Performing Active Directory connectivity check"
+        try {
+            # Test if machine is domain-joined and can reach a domain controller
+            if ($Domain) {
+                # Test specified domain
+                $testDomainDN = $Domain
+                Write-Verbose "Testing connectivity to specified domain: $Domain"
+            } else {
+                # Test current domain
+                try {
+                    $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
+                    $testDomainDN = $currentDomain.Name
+                    Write-Verbose "Testing connectivity to current domain: $testDomainDN"
+                } catch {
+                    Write-Error "This computer is not joined to an Active Directory domain or cannot contact a domain controller. Ensure you are connected to the corporate network and try again." -ErrorAction Stop
+                    return
+                }
+            }
+            
+            # Build test LDAP path
+            $testLdapPath = "LDAP://" + ($testDomainDN -replace '\.', ',DC=' -replace '^', 'DC=')
+            
+            # Perform lightweight connectivity test
+            $testDirectoryEntry = $null
+            $testSearcher = $null
+            try {
+                if ($Credential) {
+                    $testDirectoryEntry = New-Object System.DirectoryServices.DirectoryEntry($testLdapPath, $Credential.UserName, $Credential.GetNetworkCredential().Password)
+                } else {
+                    $testDirectoryEntry = New-Object System.DirectoryServices.DirectoryEntry($testLdapPath)
+                }
+                
+                # Create a test searcher with minimal timeout
+                $testSearcher = New-Object System.DirectoryServices.DirectorySearcher($testDirectoryEntry)
+                $testSearcher.ClientTimeout = New-TimeSpan -Seconds 10
+                $testSearcher.ServerTimeLimit = New-TimeSpan -Seconds 8
+                $testSearcher.Filter = "(objectClass=domain)"
+                $testSearcher.PropertiesToLoad.Add("distinguishedName") | Out-Null
+                $testSearcher.SizeLimit = 1
+                
+                # Attempt the test query
+                $testResult = $testSearcher.FindOne()
+                if ($null -eq $testResult) {
+                    Write-Error "Unable to query Active Directory. The domain controller may be unreachable." -ErrorAction Stop
+                    return
+                }
+                
+                Write-Verbose "Active Directory connectivity confirmed successfully"
+            } finally {
+                # Clean up test objects
+                if ($testSearcher) { $testSearcher.Dispose() }
+                if ($testDirectoryEntry) { $testDirectoryEntry.Dispose() }
+            }
+        }
+        catch [System.DirectoryServices.ActiveDirectory.ActiveDirectoryObjectNotFoundException] {
+            Write-Error "Active Directory domain not found. This computer may not be joined to a domain or the domain is unreachable." -ErrorAction Stop
+            return
+        }
+        catch [System.Runtime.InteropServices.COMException] {
+            # Handle COM exceptions (more generic than DirectoryServiceCOMException)
+            $errorCode = $_.Exception.HResult
+            if ($errorCode -eq -2147016672) {
+                Write-Error "Access denied to Active Directory. You may not have sufficient permissions or the domain controller is unreachable. Try running as an administrator or use the -Credential parameter." -ErrorAction Stop
+            } else {
+                Write-Error "Active Directory connectivity test failed: $($_.Exception.Message). Ensure you are connected to the corporate network and can reach a domain controller." -ErrorAction Stop
+            }
+            return
+        }
+        catch [System.UnauthorizedAccessException] {
+            Write-Error "Access denied to Active Directory. You may not have sufficient permissions. Try running as an administrator or use the -Credential parameter." -ErrorAction Stop
+            return
+        }
+        catch [System.Net.NetworkInformation.NetworkInformationException] {
+            Write-Error "Network connectivity issue. Unable to reach the domain controller. Check your network connection and try again." -ErrorAction Stop
+            return
+        }
+        catch {
+            Write-Error "Active Directory connectivity test failed: $($_.Exception.Message). This may indicate the computer is not connected to the corporate network or Active Directory is unavailable." -ErrorAction Stop
+            return
+        }
+        
         # Define default properties (same as Get-ADComputer)
         $defaultProperties = @('Name', 'DNSHostName', 'DistinguishedName', 'Enabled', 'ObjectClass', 'ObjectGUID', 'SamAccountName', 'SID', 'UserPrincipalName')
         
@@ -217,7 +311,7 @@ function Get-LDAPComputerObject {
                 }
                 
                 # Performance optimization: Load only the properties we need
-                $searcher.PropertiesToLoad.AddRange($ldapProperties)
+                $searcher.PropertiesToLoad.AddRange($ldapProperties) | Out-Null
                 Write-Verbose "Loading specific properties: $($allProperties -join ', ')"
             } else {
                 Write-Verbose "Loading all available properties"
@@ -228,33 +322,35 @@ function Get-LDAPComputerObject {
             $estimatedCapacity = if ($BatchSize -gt 100) { $BatchSize } else { 100 }
             $output = New-Object System.Collections.ArrayList($estimatedCapacity)
         }
-        catch [System.DirectoryServices.DirectoryServiceCOMException] {
+        catch [System.Runtime.InteropServices.COMException] {
+            # Handle COM exceptions (more generic than DirectoryServiceCOMException)
             # Ensure cleanup on initialization failure
             if ($searcher) { $searcher.Dispose(); $searcher = $null }
             if ($directoryEntry) { $directoryEntry.Dispose(); $directoryEntry = $null }
             
-            if ($_.Exception.ExtendedError -eq -2147016672) {
-                Write-Error "Access denied. You may not have sufficient permissions to query Active Directory. Try running as an administrator or use the -Credential parameter."
+            $errorCode = $_.Exception.HResult
+            if ($errorCode -eq -2147016672) {
+                Write-Error "Access denied. You may not have sufficient permissions to query Active Directory. Try running as an administrator or use the -Credential parameter." -ErrorAction Stop
             } else {
-                Write-Error "Directory Services error: $($_.Exception.Message)"
+                Write-Error "Directory Services error: $($_.Exception.Message)" -ErrorAction Stop
             }
-            throw
+            return
         }
         catch [System.UnauthorizedAccessException] {
             # Ensure cleanup on initialization failure
             if ($searcher) { $searcher.Dispose(); $searcher = $null }
             if ($directoryEntry) { $directoryEntry.Dispose(); $directoryEntry = $null }
             
-            Write-Error "Access denied. You may not have sufficient permissions to query Active Directory. Try running as an administrator or use the -Credential parameter."
-            throw
+            Write-Error "Access denied. You may not have sufficient permissions to query Active Directory. Try running as an administrator or use the -Credential parameter." -ErrorAction Stop
+            return
         }
         catch {
             # Ensure cleanup on initialization failure
             if ($searcher) { $searcher.Dispose(); $searcher = $null }
             if ($directoryEntry) { $directoryEntry.Dispose(); $directoryEntry = $null }
             
-            Write-Error "Failed to initialize LDAP connection: $($_.Exception.Message)"
-            throw
+            Write-Error "Failed to initialize LDAP connection: $($_.Exception.Message)" -ErrorAction Stop
+            return
         }
     }
 
@@ -476,8 +572,10 @@ function Get-LDAPComputerObject {
                         $propertyHash = $null
                         $computerObject = $null
                     }
-                    catch [System.DirectoryServices.DirectoryServiceCOMException] {
-                        if ($_.Exception.ExtendedError -eq -2147016672) {
+                    catch [System.Runtime.InteropServices.COMException] {
+                        # Handle COM exceptions (more generic than DirectoryServiceCOMException)
+                        $errorCode = $_.Exception.HResult
+                        if ($errorCode -eq -2147016672) {
                             Write-Error "Access denied while querying computer '$comName'. You may not have sufficient permissions to query Active Directory."
                         } else {
                             Write-Error "Directory Services error while processing computer '$comName': $($_.Exception.Message)"
@@ -538,11 +636,18 @@ function Get-LDAPComputerObject {
         Write-Verbose "LDAP computer object retrieval completed. Found $($output.Count) objects out of $totalComputers requested."
         
         # Return array and help GC by clearing the ArrayList reference
-        $result = $output.ToArray()
-        $output.Clear()
-        $output = $null
-        $computerQueue.Clear()
-        $computerQueue = $null
+        if ($output) {
+            $result = $output.ToArray()
+            $output.Clear()
+            $output = $null
+        } else {
+            $result = @()
+        }
+        
+        if ($computerQueue) {
+            $computerQueue.Clear()
+            $computerQueue = $null
+        }
         
         return $result
     }
