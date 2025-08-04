@@ -12,6 +12,7 @@ DNS resolution and IP address enrichment for Active Directory computer objects
 ### [LDAP](./LDAP/)
 LDAP-based tools for Active Directory operations
 - **Get-LDAPComputerObject** - High-performance LDAP computer object queries
+- **Get-LDAPUserObject** - High-performance LDAP user object queries
 
 ## Getting Started
 Navigate to the specific tool directories for detailed documentation, examples, and usage instructions.
@@ -40,6 +41,22 @@ Retrieves Active Directory computer object information using efficient LDAP quer
 - Security assessments
 - Compliance reporting
 
+### [LDAP/Get-LDAPUserObject](./LDAP/Get-LDAPUserObject/)
+Retrieves Active Directory user object information using efficient LDAP queries.
+
+**Key Features:**
+- High-performance LDAP queries
+- Flexible property selection
+- Get-ADUser compatibility
+- Batch processing for large datasets
+- Custom domain and credential support
+
+**Use Cases:**
+- User object enumeration
+- Identity management and auditing
+- Security assessments
+- Compliance reporting
+
 ## Quick Start
 
 ### Loading Functions
@@ -49,6 +66,9 @@ Retrieves Active Directory computer object information using efficient LDAP quer
 
 # Load the Get-LDAPComputerObject function
 . .\Microsoft\ActiveDirectory\LDAP\Get-LDAPComputerObject\Get-LDAPComputerObject.ps1
+
+# Load the Get-LDAPUserObject function
+. .\Microsoft\ActiveDirectory\LDAP\Get-LDAPUserObject\Get-LDAPUserObject.ps1
 ```
 
 ### Basic Usage
@@ -56,6 +76,7 @@ Retrieves Active Directory computer object information using efficient LDAP quer
 # Get help for any function
 Get-Help Add-IPAddressToObject -Detailed
 Get-Help Get-LDAPComputerObject -Examples
+Get-Help Get-LDAPUserObject -Examples
 
 # Simple computer query with IP resolution
 Get-LDAPComputerObject -ComputerName "SERVER01" | Add-IPAddressToObject

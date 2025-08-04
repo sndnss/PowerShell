@@ -59,16 +59,16 @@ High-performance user object retrieval using direct LDAP queries
 ## LDAP vs PowerShell AD Module
 
 ### When to Use LDAP Tools
-- **Large Datasets**: >1000 computer objects
+- **Large Datasets**: >1000 AD objects
 - **Performance Critical**: Time-sensitive operations
 - **Memory Constrained**: Limited available memory
 - **Network Optimized**: Slow or high-latency connections
 - **Custom Queries**: Specific LDAP filter requirements
 
 ### When to Use PowerShell AD Module
-- **Small Datasets**: <100 computer objects
+- **Small Datasets**: <100 AD objects
 - **Complex Operations**: Multi-step AD modifications
-- **Built-in Features**: Need specific Get-ADComputer features
+- **Built-in Features**: Need specific Get-ADComputer/Get-ADUser features
 - **Consistency**: Existing scripts using AD module
 
 ### Performance Comparison
@@ -85,14 +85,17 @@ High-performance user object retrieval using direct LDAP queries
 
 ### Basic Setup
 ```powershell
-# Load the function
+# Load the functions
 . .\Microsoft\ActiveDirectory\LDAP\Get-LDAPComputerObject\Get-LDAPComputerObject.ps1
+. .\Microsoft\ActiveDirectory\LDAP\Get-LDAPUserObject\Get-LDAPUserObject.ps1
 
 # Get help
 Get-Help Get-LDAPComputerObject -Detailed
+Get-Help Get-LDAPUserObject -Detailed
 
 # View examples
 Get-Help Get-LDAPComputerObject -Examples
+Get-Help Get-LDAPUserObject -Examples
 ```
 
 ### Simple Queries
@@ -105,18 +108,36 @@ Get-LDAPComputerObject -ComputerName "SERVER01", "SERVER02", "WORKSTATION01"
 
 # Get all computers (use with caution in large environments)
 Get-LDAPComputerObject
+
+# Get a single user
+Get-LDAPUserObject -UserName "john.doe"
+
+# Get multiple users
+Get-LDAPUserObject -UserName "john.doe", "jane.smith", "admin.user"
+
+# Get all users (use with caution in large environments)
+Get-LDAPUserObject
 ```
 
 ### Property Selection
 ```powershell
-# Get specific properties
+# Get specific computer properties
 Get-LDAPComputerObject -Properties OperatingSystem, LastLogonDate
 
-# Get all available properties
+# Get all available computer properties
 Get-LDAPComputerObject -Properties * -ComputerName "SERVER01"
 
-# Default properties only
+# Default computer properties only
 Get-LDAPComputerObject -ComputerName "SERVER01"
+
+# Get specific user properties
+Get-LDAPUserObject -Properties Department, LastLogonDate, EmailAddress
+
+# Get all available user properties
+Get-LDAPUserObject -Properties * -UserName "john.doe"
+
+# Default user properties only
+Get-LDAPUserObject -UserName "john.doe"
 ```
 
 ## Performance Benefits
@@ -135,7 +156,7 @@ Get-LDAPComputerObject -ComputerName "SERVER01"
 
 ### Query Performance
 - Direct LDAP implementation bypasses PowerShell AD module overhead
-- Optimized LDAP filters for computer object queries
+- Optimized LDAP filters for both computer and user object queries
 - Efficient property retrieval
 - Reduced round-trips to domain controllers
 
@@ -155,18 +176,39 @@ Get-LDAPComputerObject -BatchSize 500 |
         Write-Progress -Activity "Processing Computers" -Status $_.Name
         # Your processing logic here
     }
+
+# Process large user datasets efficiently
+Get-LDAPUserObject -BatchSize 1000 -Properties Department, EmailAddress |
+    Where-Object { $_.Department -eq "IT" } |
+    Export-Csv -Path "ITUsers.csv" -NoTypeInformation
+
+# Memory-efficient user processing for very large environments
+Get-LDAPUserObject -BatchSize 500 |
+    ForEach-Object { 
+        # Process each batch as it becomes available
+        Write-Progress -Activity "Processing Users" -Status $_.Name
+        # Your processing logic here
+    }
 ```
 
 ### Cross-Domain Queries
 ```powershell
-# Query remote domain
+# Query remote domain for computers
 $credential = Get-Credential
 Get-LDAPComputerObject -Domain "remote.example.com" -Credential $credential
 
-# Multi-domain inventory
+# Query remote domain for users
+Get-LDAPUserObject -Domain "remote.example.com" -Credential $credential
+
+# Multi-domain computer inventory
 $domains = @("domain1.com", "domain2.com", "domain3.com")
 $allComputers = foreach ($domain in $domains) {
     Get-LDAPComputerObject -Domain $domain -Properties OperatingSystem
+}
+
+# Multi-domain user inventory
+$allUsers = foreach ($domain in $domains) {
+    Get-LDAPUserObject -Domain $domain -Properties Department, EmailAddress
 }
 ```
 
@@ -189,25 +231,39 @@ Get-LDAPComputerObject -Properties OperatingSystem, LastLogonDate |
 
 ### Performance Monitoring
 ```powershell
-# Monitor query performance
+# Monitor computer query performance
 Measure-Command {
     $computers = Get-LDAPComputerObject -Properties OperatingSystem
     Write-Host "Retrieved $($computers.Count) computers"
 }
 
-# Compare with Get-ADComputer
+# Monitor user query performance
+Measure-Command {
+    $users = Get-LDAPUserObject -Properties Department
+    Write-Host "Retrieved $($users.Count) users"
+}
+
+# Compare with standard AD module
 Measure-Command { Get-ADComputer -Filter * -Properties OperatingSystem }
 Measure-Command { Get-LDAPComputerObject -Properties OperatingSystem }
+
+Measure-Command { Get-ADUser -Filter * -Properties Department }
+Measure-Command { Get-LDAPUserObject -Properties Department }
 ```
 
 ### Troubleshooting and Debugging
 ```powershell
-# Use verbose output for troubleshooting
+# Use verbose output for troubleshooting computers
 Get-LDAPComputerObject -ComputerName "SERVER01" -Verbose
+
+# Use verbose output for troubleshooting users
+Get-LDAPUserObject -UserName "john.doe" -Verbose
 
 # Debug LDAP connection issues
 Get-LDAPComputerObject -Domain "test.local" -Verbose
+Get-LDAPUserObject -Domain "test.local" -Verbose
 
 # Monitor batch processing
 Get-LDAPComputerObject -BatchSize 100 -Verbose
+Get-LDAPUserObject -BatchSize 100 -Verbose
 ```
